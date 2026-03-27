@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Calendar,
   Plus,
@@ -7,7 +7,9 @@ import {
   Trash2,
   X,
   Loader2,
+  Upload,
 } from "lucide-react";
+import api from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,10 +51,14 @@ function formatDate(iso: string) {
 function ComposeModal({ onClose }: { onClose: () => void }) {
   const [caption, setCaption] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState(() => {
     const d = new Date(Date.now() + 60 * 60 * 1000);
     return d.toISOString().slice(0, 16);
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: accounts, isLoading: loadingAccounts } = useSocialAccounts();
   const createPost = useCreatePost();
@@ -61,11 +67,31 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data } = await api.post<{ url: string }>("/upload", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setMediaUrls((prev) => [...prev, data.url]);
+    } catch (err: any) {
+      setUploadError(err?.response?.data?.detail ?? "Erro ao fazer upload.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleSave() {
     if (!caption.trim() || selectedIds.length === 0) return;
     await createPost.mutateAsync({
       caption: caption.trim(),
-      media_urls: [],
+      media_urls: mediaUrls,
       scheduled_at: new Date(scheduledAt).toISOString(),
       social_account_ids: selectedIds,
     });
@@ -101,11 +127,49 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-muted-foreground text-right">{caption.length}/2200</p>
           </div>
 
-          <div className="border-2 border-dashed rounded-lg p-5 flex flex-col items-center gap-2 text-muted-foreground cursor-pointer hover:border-primary-300 transition-colors">
-            <ImageIcon size={22} />
-            <p className="text-sm">Clique para adicionar imagem ou vídeo</p>
-            <p className="text-xs">JPEG, PNG, MP4 — máx. 100 MB</p>
-          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {uploadError && (
+            <p className="text-xs text-destructive">{uploadError}</p>
+          )}
+
+          {mediaUrls.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {mediaUrls.map((url, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-md overflow-hidden border">
+                  {url.match(/\.(mp4|mov)$/i) ? (
+                    <video src={url} className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMediaUrls((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 text-white hover:bg-black/80"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="border-2 border-dashed rounded-lg p-5 flex flex-col items-center gap-2 text-muted-foreground cursor-pointer hover:border-primary-300 transition-colors w-full disabled:opacity-50"
+          >
+            {uploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
+            <p className="text-sm">{uploading ? "Enviando..." : "Clique para adicionar imagem ou vídeo"}</p>
+            <p className="text-xs">JPEG, PNG, GIF, WEBP, MP4 — máx. 100 MB</p>
+          </button>
 
           <div className="space-y-1.5">
             <Label>Publicar em</Label>

@@ -132,8 +132,9 @@ function AvailableCard({ platform }: { platform: PlatformConfig }) {
   const Icon = platform.icon;
 
   function handleConnect() {
+    const apiBase = (import.meta.env.VITE_API_URL ?? "/api/v1").replace(/\/api\/v1\/?$/, "");
     const sep = platform.oauthPath.includes("?") ? "&" : "?";
-    window.location.href = `${platform.oauthPath}${sep}token=${accessToken}`;
+    window.location.href = `${apiBase}${platform.oauthPath}${sep}token=${accessToken}`;
   }
 
   return (

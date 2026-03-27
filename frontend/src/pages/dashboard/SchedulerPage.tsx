@@ -52,6 +52,7 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
   const [caption, setCaption] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState(() => {
@@ -72,6 +73,8 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
     if (!file) return;
     setUploading(true);
     setUploadError(null);
+    // Local preview via blob URL (avoids ngrok header restriction em img tags)
+    const blobUrl = URL.createObjectURL(file);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -79,12 +82,20 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setMediaUrls((prev) => [...prev, data.url]);
+      setPreviews((prev) => [...prev, blobUrl]);
     } catch (err: any) {
+      URL.revokeObjectURL(blobUrl);
       setUploadError(err?.response?.data?.detail ?? "Erro ao fazer upload.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  function removeMedia(index: number) {
+    URL.revokeObjectURL(previews[index]);
+    setMediaUrls((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSave() {
@@ -139,19 +150,19 @@ function ComposeModal({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-destructive">{uploadError}</p>
           )}
 
-          {mediaUrls.length > 0 && (
+          {previews.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {mediaUrls.map((url, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-md overflow-hidden border">
-                  {url.match(/\.(mp4|mov)$/i) ? (
+              {previews.map((url, i) => (
+                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                  {mediaUrls[i]?.match(/\.(mp4|mov)$/i) ? (
                     <video src={url} className="w-full h-full object-cover" />
                   ) : (
                     <img src={url} alt="" className="w-full h-full object-cover" />
                   )}
                   <button
                     type="button"
-                    onClick={() => setMediaUrls((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 text-white hover:bg-black/80"
+                    onClick={() => removeMedia(i)}
+                    className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 text-white hover:bg-black/80 transition-colors"
                   >
                     <X size={10} />
                   </button>

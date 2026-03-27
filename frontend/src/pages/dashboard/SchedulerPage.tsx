@@ -365,6 +365,11 @@ export default function SchedulerPage() {
                         )}
                       </div>
                     </div>
+                    {post.status === "failed" && post.error_message && (
+                      <p className="text-xs text-destructive mt-2 bg-red-50 rounded-md px-2.5 py-1.5 border border-red-100">
+                        {post.error_message}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );

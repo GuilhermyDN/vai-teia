@@ -68,9 +68,12 @@ export interface ScheduledPostCreate {
   social_account_ids: number[];
 }
 
+export type ConversationType = "dm" | "comment";
+
 export interface ConversationOut {
   id: number;
   platform: Platform;
+  conversation_type: ConversationType;
   contact_name: string;
   contact_avatar_url: string | null;
   unread_count: number;
